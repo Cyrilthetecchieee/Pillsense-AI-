@@ -1,6 +1,7 @@
 /**
- * Web Speech Recognition & Speech Synthesis Utility
- * Supports English (en-US, en-IN) and Tamil (ta-IN).
+ * Resilient Web Speech Recognition & Speech Synthesis Utility
+ * Handles browser voice loading latency, cross-platform voice fallbacks,
+ * and chunked utterance playback so long responses don't stall or time out.
  */
 
 export interface SpeechRecognitionResult {
@@ -8,14 +9,13 @@ export interface SpeechRecognitionResult {
   isFinal: boolean;
 }
 
-// Check browser support for SpeechRecognition
 export function getSpeechRecognition(): any {
   if (typeof window === 'undefined') return null;
-  const SpeechRecognition =
+  return (
     (window as any).SpeechRecognition ||
     (window as any).webkitSpeechRecognition ||
-    null;
-  return SpeechRecognition;
+    null
+  );
 }
 
 export function isSpeechRecognitionSupported(): boolean {
@@ -26,84 +26,128 @@ export function isSpeechSynthesisSupported(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window;
 }
 
+// Preload voices
+let cachedVoices: SpeechSynthesisVoice[] = [];
+function loadVoices(): Promise<SpeechSynthesisVoice[]> {
+  return new Promise((resolve) => {
+    if (!isSpeechSynthesisSupported()) {
+      resolve([]);
+      return;
+    }
+    const current = window.speechSynthesis.getVoices();
+    if (current.length > 0) {
+      cachedVoices = current;
+      resolve(current);
+      return;
+    }
+    window.speechSynthesis.onvoiceschanged = () => {
+      cachedVoices = window.speechSynthesis.getVoices();
+      resolve(cachedVoices);
+    };
+    // Safety timeout in case onvoiceschanged does not fire
+    setTimeout(() => {
+      cachedVoices = window.speechSynthesis.getVoices();
+      resolve(cachedVoices);
+    }, 400);
+  });
+}
+
+// Immediately attempt voice caching on client load
+if (typeof window !== 'undefined') {
+  loadVoices();
+}
+
 /**
- * Prepares text specifically for Tamil Text-to-Speech synthesis.
- * Strips English acronyms and parenthetical Latin text that cause
- * TTS engines to awkwardly flip into English or mispronounce words.
+ * Cleans text for speech synthesis so that punctuation, markdown,
+ * and formatting don't cause the audio engine to pause or fail.
  */
 export function sanitizeForVoice(text: string, language: 'en' | 'ta'): string {
-  // 1. Remove markdown symbols (*, #, _, `, >, -, ~)
   let cleaned = text
     .replace(/[*#_`>~]/g, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/^\s*[-•]\s*/gm, '');
+    .replace(/^\s*[-•]\s*/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   if (language === 'ta') {
-    // 2. Remove English letters inside parentheses (e.g. "(Paracetamol 500 mg)")
+    // Remove parenthetical English notations if present so TTS doesn't stumble
     cleaned = cleaned.replace(/\([A-Za-z0-9\s.,\/-]+\)/g, '');
-    // 3. Remove standalone Latin words so the Tamil TTS voice speaks purely in Tamil
-    cleaned = cleaned.replace(/\b[A-Za-z]+\b/g, '');
-    // 4. Clean extra spaces or multiple commas left behind
     cleaned = cleaned.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim();
-  } else {
-    cleaned = cleaned.replace(/\s+/g, ' ').trim();
   }
 
   return cleaned;
 }
 
 /**
- * Text-to-Speech (TTS) synthesizer with clean Tamil & English voice selection
+ * Synthesizes and speaks text out loud with reliable cross-browser fallbacks.
+ * Splits into bite-sized sentences to prevent Android/iOS/Chrome 15-second speech cuts.
  */
-export function speakText(text: string, language: 'en' | 'ta' = 'en'): Promise<void> {
-  return new Promise((resolve) => {
-    if (!isSpeechSynthesisSupported()) {
-      resolve();
-      return;
-    }
+export async function speakText(text: string, language: 'en' | 'ta' = 'en'): Promise<void> {
+  if (!isSpeechSynthesisSupported()) {
+    return;
+  }
 
-    // Cancel ongoing speech
-    window.speechSynthesis.cancel();
+  const voices = await loadVoices();
+  const cleanText = sanitizeForVoice(text, language);
+  if (!cleanText) return;
 
-    const cleanText = sanitizeForVoice(text, language);
+  // Cancel any existing speech
+  window.speechSynthesis.cancel();
 
-    if (!cleanText) {
-      resolve();
-      return;
-    }
+  // Find optimal voice
+  let selectedVoice: SpeechSynthesisVoice | null = null;
+  if (language === 'ta') {
+    selectedVoice =
+      voices.find(v => v.lang === 'ta-IN' || v.lang === 'ta_IN') ||
+      voices.find(v => v.lang.toLowerCase().startsWith('ta')) ||
+      voices.find(v => v.name.toLowerCase().includes('tamil') || v.name.includes('தமிழ்')) ||
+      null;
+  } else {
+    selectedVoice =
+      voices.find(v => v.lang === 'en-US' || v.lang === 'en-GB' || v.lang.startsWith('en')) ||
+      null;
+  }
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = language === 'ta' ? 'ta-IN' : 'en-US';
-    // Slightly slower rate (0.88) for clear Tamil enunciation
-    utterance.rate = language === 'ta' ? 0.88 : 0.95;
-    utterance.pitch = 1.0;
+  // Split text into readable sentences so long explanations play completely
+  // Supports Tamil full stop/period delimiters
+  const sentences = cleanText
+    .split(/([.!?।\n]+)/)
+    .filter(s => s.trim().length > 0);
 
-    // Pick best available voice matching language
-    const voices = window.speechSynthesis.getVoices();
-    let matchingVoice = null;
-
-    if (language === 'ta') {
-      // Prioritize explicit Tamil language tags and names (Google தமிழ், Microsoft Valluvar, etc.)
-      matchingVoice = voices.find(v =>
-        v.lang === 'ta-IN' ||
-        v.lang === 'ta_IN' ||
-        v.lang.toLowerCase().startsWith('ta') ||
-        v.name.toLowerCase().includes('tamil') ||
-        v.name.includes('தமிழ்')
-      );
+  // Group sentences into short chunks (~120 chars)
+  const chunks: string[] = [];
+  let currentChunk = '';
+  for (const part of sentences) {
+    if ((currentChunk + part).length < 140) {
+      currentChunk += part;
     } else {
-      matchingVoice = voices.find(v => v.lang.startsWith('en'));
+      if (currentChunk.trim()) chunks.push(currentChunk.trim());
+      currentChunk = part;
     }
+  }
+  if (currentChunk.trim()) chunks.push(currentChunk.trim());
 
-    if (matchingVoice) {
-      utterance.voice = matchingVoice;
-    }
+  // Play chunks sequentially
+  for (const chunk of chunks) {
+    await new Promise<void>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(chunk);
+      utterance.lang = language === 'ta' ? 'ta-IN' : 'en-US';
+      utterance.rate = language === 'ta' ? 0.90 : 1.0;
+      utterance.pitch = 1.0;
 
-    utterance.onend = () => resolve();
-    utterance.onerror = () => resolve();
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
 
-    window.speechSynthesis.speak(utterance);
-  });
+      utterance.onend = () => resolve();
+      utterance.onerror = (e) => {
+        console.warn('Speech synthesis chunk error:', e);
+        resolve(); // Continue to next chunk or finish gracefully
+      };
+
+      window.speechSynthesis.speak(utterance);
+    });
+  }
 }
 
 export function stopSpeaking(): void {

@@ -175,9 +175,11 @@ export const Assistant: React.FC = () => {
       // Voice read-back if autoVoiceReply enabled
       if (autoVoiceReply && response.answer) {
         setIsSpeaking(true);
-        speakText(response.answer, selectedLang).then(() => {
+        try {
+          await speakText(response.answer, selectedLang);
+        } finally {
           setIsSpeaking(false);
-        });
+        }
       }
     } catch {
       const fallbackText = selectedLang === 'ta'
