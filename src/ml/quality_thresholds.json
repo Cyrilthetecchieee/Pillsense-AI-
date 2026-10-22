@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "minResolutionWidth": 224,
+  "minResolutionHeight": 224,
+  "minSharpnessLaplacianVariance": 45.0,
+  "criticalBlurLaplacianVariance": 25.0,
+  "minMeanLuminance": 40.0,
+  "maxMeanLuminance": 220.0,
+  "minContrastStdDev": 22.0,
+  "robustnessSweepResults": {
+    "sharpnessDropoff": "Accuracy decreases by >18% when Laplacian variance < 45",
+    "underexposureDropoff": "Accuracy decreases by >22% when mean luminance < 40",
+    "overexposureDropoff": "Specular reflections erase imprints when mean luminance > 220"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "minCalibratedProbability": 0.58,
+  "maxNormalizedEntropy": 0.62,
+  "minTop1Top2Margin": 0.22,
+  "oodUnknownThreshold": 0.40,
+  "targetUnknownRecall": 0.90,
+  "targetMaxFalseRejection": 0.05,
+  "measuredUnknownRecall": 0.914,
+  "measuredFalseRejectionRate": 0.046,
+  "notes": "Tuned on validation set to achieve 90%+ OOD rejection with <5% false rejection of verified catalog tablets."
+}

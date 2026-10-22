@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && (request.auth.token.role == 'admin' || request.auth.token.admin == true);
+    }
+
+    // Users collection and subcollections (scans, preferences)
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /scans/{scanId} {
+        allow read, write, delete: if isOwner(uid);
+      }
+    }
+
+    // Medicines collection - readable by all authenticated users, writeable only by admin
+    match /medicines/{medicineId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Model Registry collection - read by authenticated users, writeable only by admin
+    match /modelRegistry/{version} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Feedback collection - users can submit feedback on scans
+    match /feedback/{feedbackId} {
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow read, write: if isAdmin();
+    }
+
+    // Analytics collection - aggregate metrics, read-only for admins
+    match /analytics/{docId} {
+      allow read: if isAdmin();
+      allow write: if false; // Only Cloud Functions / Admin SDK can write
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

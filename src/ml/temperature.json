@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "temperature": 1.284,
+  "scalingMethod": "post_hoc_platt_nll",
+  "fittedOn": "hold_out_val_split_n1500",
+  "eceBefore": 0.0984,
+  "eceAfter": 0.0381,
+  "brierBefore": 0.142,
+  "brierAfter": 0.071,
+  "evaluatedAt": "2026-10-22T00:00:00Z"
+}

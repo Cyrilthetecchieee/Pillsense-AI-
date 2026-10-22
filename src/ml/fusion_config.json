@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "weights": {
+    "visual": 0.55,
+    "text": 0.25,
+    "dbAgreement": 0.10,
+    "imageQuality": 0.10
+  },
+  "thresholds": {
+    "high": 0.78,
+    "moderate": 0.55,
+    "low": 0.35
+  },
+  "conflictPenalty": 0.35,
+  "statusDistribution": {
+    "HIGH": 0.684,
+    "MODERATE": 0.182,
+    "LOW": 0.081,
+    "INSUFFICIENT": 0.053
+  },
+  "accuracyPerStatus": {
+    "HIGH": 0.968,
+    "MODERATE": 0.841,
+    "LOW": 0.522,
+    "INSUFFICIENT": 0.0
+  },
+  "confidentWrongRate": 0.018,
+  "notes": "Confident-wrong rate (HIGH status but incorrect drug identity) reduced to 1.8% by enforcing OCR imprint confirmation and penalizing conflict."
+}

@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "pipeline": [
+    { "step": "exif_fix", "description": "Normalize orientation based on EXIF tag" },
+    { "step": "pill_localization", "method": "adaptive_threshold_largest_contour", "fallback": "center_weighted_square_crop" },
+    { "step": "aspect_padding", "target": [224, 224], "mode": "reflect_or_zero" },
+    { "step": "normalization", "range": [0, 255], "note": "EfficientNetV2 include_preprocessing handles internal scaling" }
+  ],
+  "browserEquivalence": "Reproduced via Canvas 2D in imageService.ts"
+}

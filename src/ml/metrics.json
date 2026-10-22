@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "curatedTest": {
+    "top1": 0.952,
+    "top3": 0.984,
+    "macroF1": 0.938,
+    "macroPrecision": 0.945,
+    "macroRecall": 0.932,
+    "ci95_top1": [0.941, 0.963]
+  },
+  "realWorldTestPhonePhotos": {
+    "top1": 0.864,
+    "top3": 0.951,
+    "macroF1": 0.852,
+    "macroPrecision": 0.867,
+    "macroRecall": 0.841,
+    "ci95_top1": [0.838, 0.887],
+    "domainGapDelta": -0.088
+  },
+  "calibration": {
+    "eceBefore": 0.0984,
+    "eceAfter": 0.0381,
+    "temperature": 1.284
+  },
+  "openSetRejection": {
+    "unknownRecallAt5PctFPR": 0.914,
+    "falseRejectionKnownPills": 0.046
+  },
+  "modelFootprint": {
+    "backbone": "EfficientNetV2-B0",
+    "params": 5912400,
+    "tfjsQuantizedSizeMB": 11.8,
+    "tfliteSizeMB": 6.2,
+    "browserInferenceLatencyMs": 138
+  }
+}

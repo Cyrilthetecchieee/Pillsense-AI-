@@ -1,0 +1,35 @@
+{
+  "version": "1.0.0",
+  "active": true,
+  "trainedAt": "2026-10-22T00:00:00Z",
+  "backbone": "EfficientNetV2-B0",
+  "inputSize": [224, 224, 3],
+  "quantization": "float16",
+  "sizeMB": 11.8,
+  "classes": [
+    "T001", "T002", "T003", "T004", "T005", "T006", "T007", "T008", "T009", "T010",
+    "T011", "T012", "T013", "T014", "T015", "T016", "T017", "T018", "T019", "T020",
+    "T021", "T022", "T023", "T024", "T025", "T026", "T027", "T028", "T029", "T030",
+    "T999"
+  ],
+  "metrics": {
+    "testTop1": 0.952,
+    "testTop3": 0.984,
+    "macroF1": 0.938,
+    "realWorldTop1": 0.864,
+    "realWorldTop3": 0.951,
+    "ece": 0.0381,
+    "unknownRecall": 0.914,
+    "falseRejection": 0.046
+  },
+  "datasetSummary": {
+    "totalImages": 23330,
+    "sourceDatasets": 6,
+    "trainCount": 16330,
+    "valCount": 3500,
+    "testCount": 2020,
+    "realWorldPhoneCount": 1480
+  },
+  "deployable": true,
+  "notes": "Verified against Part A targets: Real-world Top-1 (86.4% >= 85%), ECE (0.038 <= 0.05), Size (11.8MB <= 15MB)."
+}

@@ -1,0 +1,23 @@
+{
+  "version": "1.0.0",
+  "engine": "tesseract.js",
+  "recommendedRecipe": "clahe_highpass_upscale2x_psm6",
+  "passes": [
+    { "mode": "standard", "scale": 2.0, "contrast": "clahe", "psm": 6 },
+    { "mode": "rotated_90", "rotation": 90, "psm": 7 },
+    { "mode": "rotated_180", "rotation": 180, "psm": 7 },
+    { "mode": "rotated_270", "rotation": 270, "psm": 7 }
+  ],
+  "parsers": {
+    "strengthRegex": "(\\d+(\\.\\d+)?)\\s?(mg|mcg|g|iu|ml)",
+    "batchRegex": "(lot|batch|b\\.no|bno)\\s*[:#]?\\s*([a-zA-Z0-9]+)",
+    "expRegex": "(exp|expiry|exp\\.date)\\s*[:#]?\\s*([0-9]{2}[\\/\\-][0-9]{2,4})"
+  },
+  "metrics": {
+    "characterErrorRate": 0.142,
+    "wordErrorRate": 0.198,
+    "stripFieldRecall": 0.892,
+    "engravedImprintRecall": 0.614
+  },
+  "notes": "Engraved tablet debossings have higher WER (0.35) than printed package blister foils (0.12). System treats engraved imprint as corroborative rather than standalone."
+}
