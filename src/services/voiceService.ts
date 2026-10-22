@@ -27,7 +27,33 @@ export function isSpeechSynthesisSupported(): boolean {
 }
 
 /**
- * Text-to-Speech (TTS) synthesizer with Tamil & English voice selection
+ * Prepares text specifically for Tamil Text-to-Speech synthesis.
+ * Strips English acronyms and parenthetical Latin text that cause
+ * TTS engines to awkwardly flip into English or mispronounce words.
+ */
+export function sanitizeForVoice(text: string, language: 'en' | 'ta'): string {
+  // 1. Remove markdown symbols (*, #, _, `, >, -, ~)
+  let cleaned = text
+    .replace(/[*#_`>~]/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^\s*[-•]\s*/gm, '');
+
+  if (language === 'ta') {
+    // 2. Remove English letters inside parentheses (e.g. "(Paracetamol 500 mg)")
+    cleaned = cleaned.replace(/\([A-Za-z0-9\s.,\/-]+\)/g, '');
+    // 3. Remove standalone Latin words so the Tamil TTS voice speaks purely in Tamil
+    cleaned = cleaned.replace(/\b[A-Za-z]+\b/g, '');
+    // 4. Clean extra spaces or multiple commas left behind
+    cleaned = cleaned.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim();
+  } else {
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  }
+
+  return cleaned;
+}
+
+/**
+ * Text-to-Speech (TTS) synthesizer with clean Tamil & English voice selection
  */
 export function speakText(text: string, language: 'en' | 'ta' = 'en'): Promise<void> {
   return new Promise((resolve) => {
@@ -39,11 +65,7 @@ export function speakText(text: string, language: 'en' | 'ta' = 'en'): Promise<v
     // Cancel ongoing speech
     window.speechSynthesis.cancel();
 
-    // Clean markdown characters (*, #, _, `, etc.) for smooth speech
-    const cleanText = text
-      .replace(/[*#_`>]/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .trim();
+    const cleanText = sanitizeForVoice(text, language);
 
     if (!cleanText) {
       resolve();
@@ -52,16 +74,26 @@ export function speakText(text: string, language: 'en' | 'ta' = 'en'): Promise<v
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = language === 'ta' ? 'ta-IN' : 'en-US';
-    utterance.rate = 0.95;
+    // Slightly slower rate (0.88) for clear Tamil enunciation
+    utterance.rate = language === 'ta' ? 0.88 : 0.95;
     utterance.pitch = 1.0;
 
     // Pick best available voice matching language
     const voices = window.speechSynthesis.getVoices();
-    const matchingVoice = voices.find(v =>
-      language === 'ta'
-        ? v.lang.startsWith('ta') || v.name.toLowerCase().includes('tamil')
-        : v.lang.startsWith('en')
-    );
+    let matchingVoice = null;
+
+    if (language === 'ta') {
+      // Prioritize explicit Tamil language tags and names (Google தமிழ், Microsoft Valluvar, etc.)
+      matchingVoice = voices.find(v =>
+        v.lang === 'ta-IN' ||
+        v.lang === 'ta_IN' ||
+        v.lang.toLowerCase().startsWith('ta') ||
+        v.name.toLowerCase().includes('tamil') ||
+        v.name.includes('தமிழ்')
+      );
+    } else {
+      matchingVoice = voices.find(v => v.lang.startsWith('en'));
+    }
 
     if (matchingVoice) {
       utterance.voice = matchingVoice;
