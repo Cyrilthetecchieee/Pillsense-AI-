@@ -1,6 +1,7 @@
 # PillSense AI – Production Medicine Identification System
 
 [![CI Build](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/Cyrilthetecchieee/Pillsense-AI-)
+[![Vercel Live](https://img.shields.io/badge/Vercel-Live%20Deployment-black?logo=vercel)](https://pillsense-ai-nine.vercel.app)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict%20Mode-blue.svg)](https://www.typescriptlang.org/)
 [![Firebase](https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore-orange.svg)](https://firebase.google.com/)
 [![Gemini](https://img.shields.io/badge/Gemini%202.5%20Flash-AI%20Studio-blueviolet.svg)](https://aistudio.google.com/)
