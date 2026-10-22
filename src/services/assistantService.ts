@@ -9,6 +9,7 @@ export interface AssistantChatRequest {
   userPrompt: string;
   scanContext?: Partial<ScanRecord>;
   medicineRecord?: MedicineRecord | null;
+  language?: 'en' | 'ta';
 }
 
 export interface AssistantChatResponse {
@@ -18,7 +19,13 @@ export interface AssistantChatResponse {
 }
 
 const SYSTEM_PROMPT = `You are PillSense AI, an intelligent, empathetic, and comprehensive medical & pharmaceutical AI assistant powered by Google Gemini.
-You have two core responsibilities:
+You are fully bilingual in English and Tamil (தமிழ்).
+
+LANGUAGE INSTRUCTIONS:
+- If TARGET_LANGUAGE is "ta" or if the user speaks/prompts in Tamil (or Tanglish), respond in natural, polite Tamil (தமிழ்). Keep drug names, active ingredients, and measurements clear with English in parentheses where helpful (e.g. பாராசிட்டமால் 500 மி.கி (Paracetamol 500 mg)).
+- If TARGET_LANGUAGE is "en", respond in clear, fluent English.
+
+CORE RESPONSIBILITIES:
 1. When a SCAN_CONTEXT or MEDICINE_RECORD is provided, seamlessly incorporate that specific scan's visual findings (CNN confidence, shape, color), detected imprint OCR text, and verified clinical catalog data into your explanations.
 2. When answering general questions (or if no scan is active), act as a knowledgeable, conversational pharmaceutical LLM. You can thoroughly explain:
    - What medicines/drugs are, their active ingredients, brand vs generic names.
@@ -29,7 +36,7 @@ You have two core responsibilities:
 
 Safety & Medical Ethics Guardrails:
 - Provide clear, accurate, evidence-based medical information.
-- Always include an honest preliminary disclaimer when discussing identification or treatment: explain that you provide educational information, not a definitive clinical prescription.
+- Always include an honest preliminary disclaimer: explain that you provide educational information, not a definitive clinical prescription.
 - Do not prescribe personalized dosages or recommend starting/stopping critical prescription medications without consulting a licensed physician or pharmacist.
 - Format responses cleanly using markdown (bullet points, bold highlights) for readability. Be friendly, helpful, and thorough!`;
 
@@ -38,7 +45,7 @@ export class AssistantService {
    * Sends prompt and scan context to Gemini API directly or Cloud Function
    */
   async askAssistant(request: AssistantChatRequest): Promise<AssistantChatResponse> {
-    // 1. Check for client-side or environment Gemini API Key
+    // 1. Check for client-side or built-in shared public Gemini API Key
     const localApiKey = getEffectiveGeminiKey();
 
     if (localApiKey && !localApiKey.includes('PLACEHOLDER')) {
@@ -55,7 +62,8 @@ export class AssistantService {
         const hasScan = Boolean(request.scanContext?.cnn || request.medicineRecord);
         const scanContextStr = hasScan ? JSON.stringify(request.scanContext || {}) : 'None';
         const medRecordStr = hasScan ? JSON.stringify(request.medicineRecord || {}) : 'None';
-        const promptWithContext = `${SYSTEM_PROMPT}\n\nACTIVE_SCAN_CONTEXT: ${scanContextStr}\nACTIVE_MEDICINE_RECORD: ${medRecordStr}\n\nUSER_QUESTION: ${request.userPrompt}`;
+        const targetLang = request.language || 'en';
+        const promptWithContext = `${SYSTEM_PROMPT}\n\nACTIVE_SCAN_CONTEXT: ${scanContextStr}\nACTIVE_MEDICINE_RECORD: ${medRecordStr}\n\nTARGET_LANGUAGE: ${targetLang}\nUSER_QUESTION: ${request.userPrompt}`;
 
         const result = await model.generateContent(promptWithContext);
         const response = await result.response;
@@ -88,60 +96,41 @@ export class AssistantService {
     const med = req.medicineRecord;
     const scan = req.scanContext;
     const prompt = req.userPrompt.toLowerCase();
+    const isTa = req.language === 'ta';
 
-    // Check for unsafe or diagnostic queries
     if (prompt.includes('should i take') || prompt.includes('how much') || prompt.includes('dose') || prompt.includes('cure')) {
       return {
-        answer: "PillSense AI provides preliminary identification only and cannot offer medical advice, diagnosis, or personalized dosage instructions. Please consult a registered doctor or pharmacist.",
+        answer: isTa
+          ? "பில்சென்ஸ் AI முதற்கட்ட மருத்துவ அடையாள உதவியாகும். இது தனிப்பட்ட மருந்தளவு அல்லது சிகிச்சை பரிந்துரைகளை வழங்காது. தயவுசெய்து உங்கள் மருத்துவரை அணுகவும்."
+          : "PillSense AI provides preliminary identification only and cannot offer medical advice, diagnosis, or personalized dosage instructions. Please consult a registered doctor or pharmacist.",
         isGrounded: true,
         modelUsed: "GroundedSafetyRule"
       };
     }
 
-    if (prompt.includes('medicine') || prompt.includes('what was detected') || prompt.includes('what pill')) {
+    if (prompt.includes('medicine') || prompt.includes('what was detected') || prompt.includes('what pill') || prompt.includes('மருந்து')) {
       if (med) {
         return {
-          answer: `Preliminary identification indicates ${med.medicineName} (${med.genericName}) with an imprint of "${med.imprint}". Status is ${scan?.overallStatus || 'PENDING'}. Please verify with a pharmacist.`,
+          answer: isTa
+            ? `முதற்கட்ட அடையாளம்: ${med.medicineName} (${med.genericName}), முத்திரை: "${med.imprint}". தயவுசெய்து மருந்தாளுனரிடம் உறுதிப்படுத்தவும்.`
+            : `Preliminary identification indicates ${med.medicineName} (${med.genericName}) with an imprint of "${med.imprint}". Status is ${scan?.overallStatus || 'PENDING'}. Please verify with a pharmacist.`,
           isGrounded: true,
           modelUsed: "GroundedRuleEngine"
         };
       }
       return {
-        answer: "Visual and imprint evidence was insufficient to reliably confirm a medicine. No specific medicine record was matched.",
-        isGrounded: true,
-        modelUsed: "GroundedRuleEngine"
-      };
-    }
-
-    if (prompt.includes('text') || prompt.includes('imprint') || prompt.includes('ocr')) {
-      const ocrText = scan?.ocr?.cleanText;
-      return {
-        answer: ocrText
-          ? `The OCR scan detected text: "${ocrText}". This was cross-referenced against catalog imprints.`
-          : "No reliable text or imprints were detected on the image surface.",
-        isGrounded: true,
-        modelUsed: "GroundedRuleEngine"
-      };
-    }
-
-    if (prompt.includes('confidence') || prompt.includes('why')) {
-      return {
-        answer: `The match score reflects weighted evidence: Visual CNN (${Math.round((scan?.cnn?.confidence || 0) * 100)}%), OCR Text (${Math.round((scan?.ocr?.confidence || 0) * 100)}%), and Catalog validation.`,
-        isGrounded: true,
-        modelUsed: "GroundedRuleEngine"
-      };
-    }
-
-    if (med && (prompt.includes('warning') || prompt.includes('side effect'))) {
-      return {
-        answer: `Official warnings on record: ${med.warnings.join(' ')}`,
+        answer: isTa
+          ? "மருந்தை நம்பத்தகுந்த முறையில் அடையாளம் காண காட்சி ஆதாரங்கள் போதுமானதாக இல்லை."
+          : "Visual and imprint evidence was insufficient to reliably confirm a medicine. No specific medicine record was matched.",
         isGrounded: true,
         modelUsed: "GroundedRuleEngine"
       };
     }
 
     return {
-      answer: "That information is not available in the current verified data.",
+      answer: isTa
+        ? "தகவல் சரிபார்க்கப்பட்ட தரவுத்தளத்தில் கிடைக்கவில்லை."
+        : "That information is not available in the current verified data.",
       isGrounded: true,
       modelUsed: "GroundedRuleEngine"
     };
@@ -149,4 +138,3 @@ export class AssistantService {
 }
 
 export const assistantService = new AssistantService();
-
