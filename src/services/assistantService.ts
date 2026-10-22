@@ -2,6 +2,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { ScanRecord, MedicineRecord } from '../types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getEffectiveGeminiKey } from './apiConfig';
 
 export interface AssistantChatRequest {
   scanId?: string;
@@ -38,10 +39,7 @@ export class AssistantService {
    */
   async askAssistant(request: AssistantChatRequest): Promise<AssistantChatResponse> {
     // 1. Check for client-side or environment Gemini API Key
-    const localApiKey =
-      localStorage.getItem('pillsense_gemini_key') ||
-      import.meta.env.VITE_GEMINI_API_KEY ||
-      '';
+    const localApiKey = getEffectiveGeminiKey();
 
     if (localApiKey && !localApiKey.includes('PLACEHOLDER')) {
       try {
@@ -151,3 +149,4 @@ export class AssistantService {
 }
 
 export const assistantService = new AssistantService();
+
